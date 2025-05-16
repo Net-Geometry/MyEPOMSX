@@ -1,4 +1,3 @@
-
 // Facility Location Types
 export interface Facility {
   id: number;
@@ -8,29 +7,45 @@ export interface Facility {
   project_id: number | null;
 }
 
-// System Types
 export interface System {
-  id: string;
-  systemNo: string;
-  name: string;
-  code: string;
-  facilityLocationId: string;
-  facilityLocation?: string;
-  // Add support for the fields used in sample data
-  tag?: string;
-  facilityId?: string;
-  facilityName?: string;
+  id: number;
+  facility_id?: number | null;
+  system_code: string;
+  system_no: string | null;
+  system_name: string | null;
+  is_active: boolean | null;
 }
 
 // Package Types
 export interface Package {
-  id: string;
-  packageNo: string;
+  id: number;
+  package_no: string;
+  package_name: string | null;
+  package_tag: string | null;
+  system_id: number | null;
+  package_type_id: number | null;
+  package_type?: {
+    name: string
+  } | null;
+
+}
+
+export interface PackageType {
+  id: number;
   name: string;
-  tag: string;
-  systemId: string;
-  systemName?: string;
-  type: string;
+}
+
+export interface PackageData {
+  id: number;
+  package_no: string;
+  package_name: string;
+  package_tag: string;
+  system_id: number;
+  package_type_id: number;
+  is_active?: boolean;
+  // Related data that might be included
+  system?: { id: number; system_name: string; system_code: string };
+  package_type?: { id: number; name: string };
 }
 
 // Asset Types
@@ -70,8 +85,8 @@ export interface ItemsMaster {
   id: string;
   itemsNo: string;
   name: string;
-  manufacturerPartsNo?: string;  // Make this optional to support both property names
-  manufacturer_part_no?: string;  // Alternative property name
+  manufacturerPartsNo?: string; // Make this optional to support both property names
+  manufacturer_part_no?: string; // Alternative property name
   manufacturer: string;
   type: string;
   category: string;
