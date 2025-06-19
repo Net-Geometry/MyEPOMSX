@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import KpiCard from "@/components/shared/KpiCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,7 @@ import {
   Calendar,
   Gauge,
   ShoppingCart,
+  CalendarIcon,
 } from "lucide-react";
 import {
   useAssetsCount,
@@ -43,7 +44,10 @@ import {
   useCriticalAlerts,
   useActiveItemsCount,
   useItemsCreatedByMonth,
+  useOpenWorkOrdersCount,
 } from "@/hooks/queries/useDashboard";
+import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/ui/date-picker";
 
 // Sample data for charts (fallbacks while loading)
 const barChartData = [
@@ -75,6 +79,11 @@ const areaChartData = [
 ];
 
 const Overview: React.FC = () => {
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().setDate(1)),
+    endDate: new Date(),
+  });
+
   // Asset counts
   const { data: assetsCount } = useAssetsCount();
   const { data: currentMonthAssets } = useCurrentMonthAssets();
@@ -85,14 +94,17 @@ const Overview: React.FC = () => {
   // Work order counts
   const { data: currentMonthWorkOrders } = useCurrentMonthWorkOrders();
   const { data: previousMonthWorkOrders } = usePreviousMonthWorkOrders();
+  const { data: openWorkOrdersCount } = useOpenWorkOrdersCount();
 
   // Maintenance data
   const { data: scheduledMaintenanceCount } = useScheduledMaintenanceCount();
   const { data: upcomingMaintenance } = useUpcomingMaintenance();
 
   // Chart data
-  const { data: workOrderStatusData } = useWorkOrderStatusDistribution();
-  const { data: maintenanceActivityData } = useMaintenanceActivityByType();
+  const { data: workOrderStatusData } =
+    useWorkOrderStatusDistribution(dateRange);
+  const { data: maintenanceActivityData } =
+    useMaintenanceActivityByType(dateRange);
 
   // Critical alerts data
   const { data: criticalAlertsData } = useCriticalAlerts();
@@ -120,7 +132,61 @@ const Overview: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard Overview" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <PageHeader title="Dashboard Overview" />
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-white border rounded-md px-3 py-1">
+            <CalendarIcon className="h-4 w-4 mr-2 text-gray-500" />
+            <span className="text-sm">
+              {dateRange.startDate.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}{" "}
+              -{" "}
+              {dateRange.endDate.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const today = new Date();
+              setDateRange({
+                startDate: new Date(today.getFullYear(), today.getMonth(), 1),
+                endDate: today,
+              });
+            }}
+          >
+            This Month
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const today = new Date();
+              setDateRange({
+                startDate: new Date(
+                  today.getFullYear(),
+                  today.getMonth() - 1,
+                  1
+                ),
+                endDate: new Date(today.getFullYear(), today.getMonth(), 0),
+              });
+            }}
+          >
+            Last Month
+          </Button>
+          <DateRangePicker
+            onSelect={(start, end) =>
+              setDateRange({ startDate: start, endDate: end })
+            }
+          />
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
@@ -132,8 +198,8 @@ const Overview: React.FC = () => {
           changeDirection={assetChange >= 0 ? "up" : "down"}
         />
         <KpiCard
-          title="Monthly Work Orders"
-          value={currentMonthWorkOrders?.toString() || "0"}
+          title="Open Work Orders"
+          value={openWorkOrdersCount?.toString() || "0"}
           icon={<Wrench size={24} />}
           change={Number(workOrderChange.toFixed(1))}
           changeLabel="vs last month"

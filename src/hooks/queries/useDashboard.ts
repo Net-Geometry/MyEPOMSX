@@ -46,6 +46,13 @@ export const useCurrentMonthWorkOrders = () => {
   });
 };
 
+export const useOpenWorkOrdersCount = () => {
+  return useQuery({
+    queryKey: ["openWorkOrdersCount"],
+    queryFn: dashboardService.getOpenWorkOrdersCount,
+  });
+};
+
 export const usePreviousMonthWorkOrders = () => {
   return useQuery({
     queryKey: ["previousMonthWorkOrders"],
@@ -64,7 +71,7 @@ export const useScheduledMaintenanceCount = () => {
   });
 };
 
-export const useUpcomingMaintenance = (days: number = 7) => {
+export const useUpcomingMaintenance = (days: number = 30) => {
   return useQuery({
     queryKey: ["upcomingMaintenance", days],
     queryFn: () => dashboardService.getUpcomingMaintenance(days),
@@ -78,17 +85,17 @@ export const useMaintenanceTrend = () => {
   });
 };
 
-export const useWorkOrderStatusDistribution = () => {
+export const useMaintenanceActivityByType = (dateRange?: { startDate: Date; endDate: Date }) => {
   return useQuery({
-    queryKey: ["workOrderStatusDistribution"],
-    queryFn: dashboardService.getWorkOrderStatusDistribution,
+    queryKey: ["maintenanceActivityByType", dateRange],
+    queryFn: () => dashboardService.getMaintenanceActivityByType(dateRange),
   });
 };
 
-export const useMaintenanceActivityByType = () => {
+export const useWorkOrderStatusDistribution = (dateRange?: { startDate: Date; endDate: Date }) => {
   return useQuery({
-    queryKey: ["maintenanceActivityByType"],
-    queryFn: dashboardService.getMaintenanceActivityByType,
+    queryKey: ["workOrderStatusDistribution", dateRange],
+    queryFn: () => dashboardService.getWorkOrderStatusDistribution(dateRange),
   });
 };
 

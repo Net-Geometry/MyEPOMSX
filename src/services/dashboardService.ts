@@ -14,9 +14,11 @@ const getMonthRange = (date: Date) => {
 
 export const dashboardService = {
   async getAssetCount() {
+    // @ts-ignore
     const { count, error } = await supabase
       .from("e_asset")
-      .select("id", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true);
 
     if (error) {
       throw new Error(`Error fetching asset count: ${error.message}`);
@@ -31,7 +33,8 @@ export const dashboardService = {
       .from("e_asset")
       .select("id", { count: "exact", head: true })
       .gte("created_at", start)
-      .lte("created_at", end);
+      .lte("created_at", end)
+      .eq("is_active", true);
 
     if (error) {
       throw new Error(`Error fetching asset count: ${error.message}`);
@@ -42,10 +45,26 @@ export const dashboardService = {
   async getWorkOrdersCount() {
     const { count, error } = await supabase
       .from("e_work_order")
-      .select("id", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true })
+      .eq("work_order_status_id", 1);
 
     if (error) {
       throw new Error(`Error fetching work order count: ${error.message}`);
+    }
+
+    return count ?? 0;
+  },
+
+  async getOpenWorkOrdersCount() {
+    const { count, error } = await supabase
+      .from("e_work_order")
+      .select("id", { count: "exact", head: true })
+      .eq("work_order_status_id", 1);
+
+    if (error) {
+      throw new Error(
+        `Error fetching open work orders count: ${error.message}`
+      );
     }
 
     return count ?? 0;
@@ -57,7 +76,8 @@ export const dashboardService = {
       .from("e_work_order")
       .select("id", { count: "exact", head: true })
       .gte("created_at", start)
-      .lte("created_at", end);
+      .lte("created_at", end)
+      .eq("work_order_status_id", 1);
 
     if (error) {
       throw new Error(`Error fetching work order count: ${error.message}`);
@@ -81,7 +101,7 @@ export const dashboardService = {
     return count ?? 0;
   },
 
-  async getUpcomingMaintenance(days = 7) {
+  async getUpcomingMaintenance(days = 30) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const nextWeek = new Date();
@@ -166,14 +186,34 @@ export const dashboardService = {
     }));
   },
 
-  async getWorkOrderStatusDistribution() {
-    const { data, error } = await supabase.from("e_work_order").select(
-      `
+  async getWorkOrderStatusDistribution(dateRange?: {
+    startDate: Date;
+    endDate: Date;
+  }) {
+    let startDate = new Date();
+    let endDate = new Date();
+
+    startDate.setMonth(endDate.getMonth() - 5);
+    startDate.setDate(1);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Override with custom date range if provided
+    if (dateRange) {
+      startDate = dateRange.startDate;
+      endDate = dateRange.endDate;
+    }
+
+    const { data, error } = await supabase
+      .from("e_work_order")
+      .select(
+        `
       id,
       work_order_status_id,
       e_work_order_status!work_order_status_id (name)
     `
-    );
+      )
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString());
 
     if (error) {
       throw new Error(`Error fetching work order statuses: ${error.message}`);
@@ -219,13 +259,23 @@ export const dashboardService = {
   },
 
   // Maintenance Activity By Type
-  async getMaintenanceActivityByType() {
+  async getMaintenanceActivityByType(dateRange?: {
+    startDate: Date;
+    endDate: Date;
+  }) {
     // Get data for last 6 months
-    const endDate = new Date();
-    const startDate = new Date();
+    let startDate = new Date();
+    let endDate = new Date();
+
     startDate.setMonth(endDate.getMonth() - 5);
     startDate.setDate(1);
     startDate.setHours(0, 0, 0, 0);
+
+    // Override with custom date range if provided
+    if (dateRange) {
+      startDate = dateRange.startDate;
+      endDate = dateRange.endDate;
+    }
 
     const { data, error } = await supabase
       .from("e_work_order")
