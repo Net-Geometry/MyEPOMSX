@@ -53,6 +53,7 @@ const PackagePage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentItem, setCurrentItem] = useState<PackageData | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -211,10 +212,6 @@ const PackagePage: React.FC = () => {
     setIsDialogOpen(true);
   };
 
-  const handleRowClick = (row: PackageData) => {
-    navigate(`/manage/package/${row.id}`);
-  };
-
   const handleSubmit = async (values: FormValues) => {
     const transformedValues = {
       package_no: computedPackageNo,
@@ -310,8 +307,19 @@ const PackagePage: React.FC = () => {
   // Format data for table
   const formattedData = useMemo(() => {
     if (!packages) return [];
+    let filtered = packages;
 
-    return packages.map((item) => {
+    if (searchTerm.trim()) {
+      const lower = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.package_no?.toLowerCase().includes(lower) ||
+          item.package_name?.toLowerCase().includes(lower) ||
+          item.package_tag?.toLowerCase().includes(lower)
+      );
+    }
+
+    return filtered.map((item) => {
       const systemName =
         systemOptions.find((s) => s.value === item.system_id?.toString())
           ?.label || "Unknown System";
@@ -332,7 +340,7 @@ const PackagePage: React.FC = () => {
         is_active: item.is_active,
       };
     });
-  }, [packages, systemOptions, packageTypeOptions]);
+  }, [packages, systemOptions, packageTypeOptions, searchTerm]);
 
   if (isLoading) {
     return (
@@ -361,11 +369,20 @@ const PackagePage: React.FC = () => {
 
       <Card>
         <CardContent className="pt-6">
+          {/* Search input */}
+          <div className="flex mb-4">
+            <Input
+              type="text"
+              placeholder="Search by package no, name, or tag..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full max-w-xs"
+            />
+          </div>
           <DataTable
             data={formattedData}
             columns={columns}
             onEdit={handleEdit}
-            onRowClick={handleRowClick}
             onDelete={(row) => handleDelete(Number(row.id))}
           />
         </CardContent>
@@ -404,6 +421,7 @@ const PackagePage: React.FC = () => {
                 id="packageNo"
                 value={computedPackageNo}
                 readOnly
+                disabled
                 placeholder="Will be generated automatically"
               />
             </div>
@@ -447,6 +465,8 @@ const PackagePage: React.FC = () => {
                 id="tag"
                 {...form.register("tag")}
                 placeholder="Enter package tag"
+                readOnly={isEditMode}
+                disabled={isEditMode}
               />
               {form.formState.errors.tag && (
                 <p className="text-red-500 text-sm mt-1">
