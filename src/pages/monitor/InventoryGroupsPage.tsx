@@ -28,85 +28,17 @@ import {
 import { useAssetData } from "@/hooks/lookup/looukp-asset";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-// Uncomment these when the hooks are ready to be used
-// import {
-//   useInventoryGroups,
-//   useCreateInventoryGroup,
-//   useUpdateInventoryGroup,
-//   useDeleteInventoryGroup
-// } from "@/hooks/queries/useInventoryGroups";
-
-// Sample data for inventory groups (replace with actual data later)
-const sampleInventoryGroups = [
-  {
-    id: 1,
-    asset_id: 1,
-    asset_no: "V-110",
-    asset_name: "Test Separator",
-    group_type: "Pressure Vessels",
-    group_name: "Pressure Vessels Group A",
-    total_inventory: 12,
-    component_inventory: 8,
-    description: "High-pressure vessels with similar service conditions",
-    equipment_volume: 1500.5,
-    representative_component: "V-110A",
-    is_active: true,
-  },
-  {
-    id: 2,
-    asset_id: 2,
-    asset_no: "E-220",
-    asset_name: "Heat Exchanger",
-    group_type: "Heat Exchangers",
-    group_name: "Heat Exchangers - Process Area 2",
-    total_inventory: 8,
-    component_inventory: 6,
-    description: "Shell and tube heat exchangers in high-temperature service",
-    equipment_volume: 850.25,
-    representative_component: "E-220A",
-    is_active: true,
-  },
-  {
-    id: 3,
-    asset_id: 3,
-    asset_no: "P-330",
-    asset_name: "Process Pump",
-    group_type: "Piping Systems",
-    group_name: "Critical Piping Systems",
-    total_inventory: 24,
-    component_inventory: 18,
-    description: "Critical piping circuits in corrosive service environment",
-    equipment_volume: 2200.75,
-    representative_component: "P-330A",
-    is_active: false,
-  },
-  {
-    id: 4,
-    asset_id: 4,
-    asset_no: "T-440",
-    asset_name: "Storage Tank",
-    group_type: "Storage Tanks",
-    group_name: "Storage Tanks Group B",
-    total_inventory: 6,
-    component_inventory: 4,
-    description: "Large capacity storage tanks for product storage",
-    equipment_volume: 5000.0,
-    representative_component: "T-440A",
-    is_active: true,
-  },
-];
-
-interface InventoryGroupFormData {
-  asset_id: number | null;
-  group_type: string;
-  group_name: string;
-  total_inventory: string;
-  component_inventory: string;
-  description: string;
-  equipment_volume: string;
-  representative_component: string;
-  is_active: boolean;
-}
+import {
+  useInventoryGroups,
+  useCreateInventoryGroup,
+  useUpdateInventoryGroup,
+  useDeleteInventoryGroup,
+} from "@/hooks/queries/useInventoryGroups";
+import {
+  inventoryGroupValidationService,
+  type ValidationError,
+  type InventoryGroupFormData,
+} from "@/services/inventoryGroupValidationService";
 
 const InventoryGroupsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -117,6 +49,9 @@ const InventoryGroupsPage: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentItem, setCurrentItem] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
+    []
+  );
   const [formData, setFormData] = useState<InventoryGroupFormData>({
     asset_id: null,
     group_type: "",
@@ -132,51 +67,38 @@ const InventoryGroupsPage: React.FC = () => {
   // Get asset data from the hook
   const { data: assets = [], isLoading: isAssetsLoading } = useAssetData();
 
-  // Uncomment these when the backend table is ready
-  // const { data: inventoryGroupsData, isLoading, refetch } = useInventoryGroups({
-  //   searchQuery: searchQuery.trim() || undefined,
-  //   statusFilter: statusFilter !== "all" ? statusFilter : undefined,
-  // });
+  // Fetch inventory groups data
+  const {
+    data: inventoryGroupsData,
+    isLoading,
+    refetch,
+  } = useInventoryGroups({
+    searchQuery: searchQuery.trim() || undefined,
+    statusFilter: statusFilter !== "all" ? statusFilter : undefined,
+  });
 
-  // const createInventoryGroupMutation = useCreateInventoryGroup();
-  // const updateInventoryGroupMutation = useUpdateInventoryGroup();
-  // const deleteInventoryGroupMutation = useDeleteInventoryGroup();
+  const createInventoryGroupMutation = useCreateInventoryGroup();
+  const updateInventoryGroupMutation = useUpdateInventoryGroup();
+  const deleteInventoryGroupMutation = useDeleteInventoryGroup();
 
-  // Filter and search functionality
-  const filteredData = useMemo(() => {
-    let filtered = sampleInventoryGroups;
+  // Process the real data for display
+  const processedData = useMemo(() => {
+    if (!inventoryGroupsData?.data) return [];
 
-    // Apply search filter
-    if (searchQuery.trim()) {
-      filtered = filtered.filter(
-        (item) =>
-          item.group_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.group_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.asset_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.asset_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.representative_component
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((item) => {
-        if (statusFilter === "active") return item.is_active;
-        if (statusFilter === "inactive") return !item.is_active;
-        return true;
-      });
-    }
-
-    return filtered;
-  }, [searchQuery, statusFilter]);
+    return inventoryGroupsData.data.map((item) => ({
+      ...item,
+      asset_no: item.asset?.asset_no || "N/A",
+      asset_name: item.asset?.asset_name || "N/A",
+      // Map is_status to is_active for consistency with existing components
+      is_active: item.is_status,
+    }));
+  }, [inventoryGroupsData]);
 
   // Table columns definition
   const columns: Column[] = [
     {
       id: "asset_no",
-      header: "Asset No",
+      header: "Asset Code",
       accessorKey: "asset_no",
     },
     {
@@ -208,7 +130,7 @@ const InventoryGroupsPage: React.FC = () => {
       id: "equipment_volume",
       header: "Equipment Volume",
       accessorKey: "equipment_volume",
-      cell: (value: number) => `${value.toFixed(2)} L`,
+      cell: (value: number) => (value ? `${value.toFixed(2)} L` : "N/A"),
     },
     {
       id: "representative_component",
@@ -238,6 +160,7 @@ const InventoryGroupsPage: React.FC = () => {
   const handleAddNew = () => {
     setIsEditMode(false);
     setCurrentItem(null);
+    setValidationErrors([]);
     setFormData({
       asset_id: null,
       group_type: "",
@@ -255,16 +178,17 @@ const InventoryGroupsPage: React.FC = () => {
   const handleEdit = (item: any) => {
     setIsEditMode(true);
     setCurrentItem(item);
+    setValidationErrors([]);
     setFormData({
-      asset_id: item.asset_id,
-      group_type: item.group_type,
-      group_name: item.group_name,
-      total_inventory: item.total_inventory.toString(),
-      component_inventory: item.component_inventory.toString(),
-      description: item.description,
-      equipment_volume: item.equipment_volume.toString(),
-      representative_component: item.representative_component,
-      is_active: item.is_active,
+      asset_id: item.asset_detail_id,
+      group_type: item.group_type || "",
+      group_name: item.group_name || "",
+      total_inventory: item.total_inventory?.toString() || "",
+      component_inventory: item.component_inventory?.toString() || "",
+      description: item.description || "",
+      equipment_volume: item.equipment_volume?.toString() || "",
+      representative_component: item.representative_component || "",
+      is_active: item.is_status,
     });
     setIsDialogOpen(true);
   };
@@ -277,68 +201,66 @@ const InventoryGroupsPage: React.FC = () => {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setValidationErrors([]);
 
     try {
-      // Validation
-      if (!formData.asset_id) {
+      // Validate form data
+      const validationResult =
+        await inventoryGroupValidationService.validateForm(
+          formData,
+          isEditMode,
+          currentItem?.id
+        );
+
+      if (!validationResult.isValid) {
+        setValidationErrors(validationResult.errors);
         toast({
           title: "Validation Error",
-          description: "Please select an asset",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!formData.group_type.trim() || !formData.group_name.trim()) {
-        toast({
-          title: "Validation Error",
-          description: "Please fill in all required fields",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Validate numeric fields
-      const totalInventory = parseInt(formData.total_inventory) || 0;
-      const componentInventory = parseInt(formData.component_inventory) || 0;
-      const equipmentVolume = parseFloat(formData.equipment_volume) || 0;
-
-      if (componentInventory > totalInventory) {
-        toast({
-          title: "Validation Error",
-          description: "Component inventory cannot exceed total inventory",
+          description: inventoryGroupValidationService.formatErrorsForDisplay(
+            validationResult.errors
+          ),
           variant: "destructive",
         });
         return;
       }
 
       // Prepare data for submission
-      const submitData = {
-        asset_id: formData.asset_id,
-        group_type: formData.group_type.trim(),
-        group_name: formData.group_name.trim(),
-        total_inventory: totalInventory,
-        component_inventory: componentInventory,
-        description: formData.description.trim() || null,
-        equipment_volume: equipmentVolume > 0 ? equipmentVolume : null,
-        representative_component:
-          formData.representative_component.trim() || null,
-        is_active: formData.is_active,
-        [isEditMode ? "updated_by" : "created_by"]: user?.id || "",
-      };
+      if (isEditMode && currentItem) {
+        const updateData = {
+          asset_detail_id: formData.asset_id!,
+          group_type: formData.group_type.trim(),
+          group_name: formData.group_name.trim(),
+          total_inventory: parseInt(formData.total_inventory) || 0,
+          component_inventory: parseInt(formData.component_inventory) || 0,
+          description: formData.description.trim() || undefined,
+          equipment_volume: parseFloat(formData.equipment_volume) || undefined,
+          representative_component:
+            formData.representative_component.trim() || undefined,
+          is_status: formData.is_active,
+          updated_by: user?.id || "",
+        };
 
-      // When backend is ready, uncomment and use these:
-      // if (isEditMode && currentItem) {
-      //   await updateInventoryGroupMutation.mutateAsync({
-      //     id: currentItem.id,
-      //     data: submitData,
-      //   });
-      // } else {
-      //   await createInventoryGroupMutation.mutateAsync(submitData);
-      // }
+        await updateInventoryGroupMutation.mutateAsync({
+          id: currentItem.id,
+          data: updateData,
+        });
+      } else {
+        const createData = {
+          asset_detail_id: formData.asset_id!,
+          group_type: formData.group_type.trim(),
+          group_name: formData.group_name.trim(),
+          total_inventory: parseInt(formData.total_inventory) || 0,
+          component_inventory: parseInt(formData.component_inventory) || 0,
+          description: formData.description.trim() || undefined,
+          equipment_volume: parseFloat(formData.equipment_volume) || undefined,
+          representative_component:
+            formData.representative_component.trim() || undefined,
+          is_status: formData.is_active,
+          created_by: user?.id || "",
+        };
 
-      // For now, just simulate success
-      console.log("Form data to submit:", submitData);
+        await createInventoryGroupMutation.mutateAsync(createData);
+      }
 
       const action = isEditMode ? "updated" : "created";
       toast({
@@ -348,6 +270,7 @@ const InventoryGroupsPage: React.FC = () => {
 
       setIsDialogOpen(false);
       resetForm();
+      refetch();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -373,6 +296,7 @@ const InventoryGroupsPage: React.FC = () => {
       representative_component: "",
       is_active: true,
     });
+    setValidationErrors([]);
     setCurrentItem(null);
     setIsEditMode(false);
   };
@@ -390,16 +314,14 @@ const InventoryGroupsPage: React.FC = () => {
     }
 
     try {
-      // When backend is ready, uncomment and use this:
-      // await deleteInventoryGroupMutation.mutateAsync(item.id);
-
-      // For now, just simulate success
-      console.log("Deleting item:", item);
+      await deleteInventoryGroupMutation.mutateAsync(item.id);
 
       toast({
         title: "Success",
         description: "Inventory group deleted successfully",
       });
+
+      refetch();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -417,6 +339,37 @@ const InventoryGroupsPage: React.FC = () => {
       ...prev,
       [name]: value,
     }));
+
+    // Clear specific field validation error when user starts typing
+    if (validationErrors.length > 0) {
+      setValidationErrors((prev) =>
+        prev.filter((error) => error.field !== name)
+      );
+    }
+
+    // Real-time validation for certain fields
+    if (name === "component_inventory" || name === "total_inventory") {
+      const updatedFormData = { ...formData, [name]: value };
+      const fieldError = inventoryGroupValidationService.validateField(
+        name as keyof InventoryGroupFormData,
+        value,
+        updatedFormData
+      );
+
+      if (fieldError) {
+        setValidationErrors((prev) => {
+          const filtered = prev.filter(
+            (error) => error.field !== fieldError.field
+          );
+          return [...filtered, fieldError];
+        });
+      }
+    }
+  };
+
+  // Helper function to get field error
+  const getFieldError = (fieldName: string): string | undefined => {
+    return validationErrors.find((error) => error.field === fieldName)?.message;
   };
 
   return (
@@ -463,13 +416,20 @@ const InventoryGroupsPage: React.FC = () => {
       {/* Data Table */}
       <Card>
         <CardContent className="p-6">
-          <DataTable
-            columns={columns}
-            data={filteredData}
-            onRowClick={handleRowClick}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Loading inventory groups...</span>
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={processedData}
+              onRowClick={handleRowClick}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -524,6 +484,11 @@ const InventoryGroupsPage: React.FC = () => {
                   getValue={(asset) => asset.id}
                   disabled={isAssetsLoading}
                 />
+                {getFieldError("asset_id") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("asset_id")}
+                  </p>
+                )}
               </div>
 
               {/* Group Type */}
@@ -538,7 +503,15 @@ const InventoryGroupsPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="e.g., Pressure Vessels, Heat Exchangers"
                   required
+                  className={
+                    getFieldError("group_type") ? "border-red-500" : ""
+                  }
                 />
+                {getFieldError("group_type") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("group_type")}
+                  </p>
+                )}
               </div>
 
               {/* Group Name */}
@@ -553,7 +526,15 @@ const InventoryGroupsPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="e.g., Pressure Vessels Group A"
                   required
+                  className={
+                    getFieldError("group_name") ? "border-red-500" : ""
+                  }
                 />
+                {getFieldError("group_name") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("group_name")}
+                  </p>
+                )}
               </div>
 
               {/* Total Inventory */}
@@ -567,7 +548,15 @@ const InventoryGroupsPage: React.FC = () => {
                   value={formData.total_inventory}
                   onChange={handleInputChange}
                   placeholder="0"
+                  className={
+                    getFieldError("total_inventory") ? "border-red-500" : ""
+                  }
                 />
+                {getFieldError("total_inventory") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("total_inventory")}
+                  </p>
+                )}
               </div>
 
               {/* Component Inventory */}
@@ -581,7 +570,15 @@ const InventoryGroupsPage: React.FC = () => {
                   value={formData.component_inventory}
                   onChange={handleInputChange}
                   placeholder="0"
+                  className={
+                    getFieldError("component_inventory") ? "border-red-500" : ""
+                  }
                 />
+                {getFieldError("component_inventory") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("component_inventory")}
+                  </p>
+                )}
               </div>
 
               {/* Equipment Volume */}
@@ -596,7 +593,15 @@ const InventoryGroupsPage: React.FC = () => {
                   value={formData.equipment_volume}
                   onChange={handleInputChange}
                   placeholder="0.00"
+                  className={
+                    getFieldError("equipment_volume") ? "border-red-500" : ""
+                  }
                 />
+                {getFieldError("equipment_volume") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("equipment_volume")}
+                  </p>
+                )}
               </div>
 
               {/* Representative Component */}
@@ -610,7 +615,17 @@ const InventoryGroupsPage: React.FC = () => {
                   value={formData.representative_component}
                   onChange={handleInputChange}
                   placeholder="e.g., V-110A"
+                  className={
+                    getFieldError("representative_component")
+                      ? "border-red-500"
+                      : ""
+                  }
                 />
+                {getFieldError("representative_component") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("representative_component")}
+                  </p>
+                )}
               </div>
 
               {/* Description */}
@@ -622,9 +637,16 @@ const InventoryGroupsPage: React.FC = () => {
                   value={formData.description}
                   onChange={handleInputChange}
                   placeholder="Enter description of the inventory group"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm min-h-[80px] resize-y"
+                  className={`w-full border border-gray-300 rounded-md px-3 py-2 text-sm min-h-[80px] resize-y ${
+                    getFieldError("description") ? "border-red-500" : ""
+                  }`}
                   rows={3}
                 />
+                {getFieldError("description") && (
+                  <p className="text-sm text-red-500">
+                    {getFieldError("description")}
+                  </p>
+                )}
               </div>
 
               {/* Active Status */}

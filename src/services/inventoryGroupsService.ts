@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 export interface InventoryGroup {
   id: number;
-  asset_id: number;
+  asset_detail_id: number;
   group_type: string;
   group_name: string;
   total_inventory: number;
@@ -10,15 +10,21 @@ export interface InventoryGroup {
   description?: string;
   equipment_volume?: number;
   representative_component?: string;
-  is_active: boolean;
+  is_status: boolean;
   created_at?: string;
   created_by?: string;
   updated_at?: string;
   updated_by?: string;
+  // Relations
+  asset?: {
+    id: number;
+    asset_no: string;
+    asset_name: string;
+  };
 }
 
 export interface CreateInventoryGroupData {
-  asset_id: number;
+  asset_detail_id: number;
   group_type: string;
   group_name: string;
   total_inventory: number;
@@ -26,12 +32,12 @@ export interface CreateInventoryGroupData {
   description?: string;
   equipment_volume?: number;
   representative_component?: string;
-  is_active: boolean;
+  is_status: boolean;
   created_by: string;
 }
 
 export interface UpdateInventoryGroupData {
-  asset_id?: number;
+  asset_detail_id?: number;
   group_type?: string;
   group_name?: string;
   total_inventory?: number;
@@ -39,7 +45,7 @@ export interface UpdateInventoryGroupData {
   description?: string;
   equipment_volume?: number;
   representative_component?: string;
-  is_active?: boolean;
+  is_status?: boolean;
   updated_by: string;
 }
 
@@ -54,11 +60,11 @@ class InventoryGroupsService {
     pageSize?: number;
   }): Promise<{ data: InventoryGroup[]; count: number }> {
     let query = supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
+      .from("i_inventory_group")
       .select(
         `
         *,
-        asset:e_asset(
+        asset:asset_detail_id(
           id,
           asset_no,
           asset_name
@@ -78,7 +84,7 @@ class InventoryGroupsService {
     // Apply status filter
     if (params?.statusFilter && params.statusFilter !== "all") {
       const isActive = params.statusFilter === "active";
-      query = query.eq("is_active", isActive);
+      query = query.eq("is_status", isActive);
     }
 
     // Apply pagination
@@ -102,11 +108,11 @@ class InventoryGroupsService {
    */
   async getInventoryGroupById(id: number): Promise<InventoryGroup> {
     const { data, error } = await supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
+      .from("i_inventory_group")
       .select(
         `
         *,
-        asset:e_asset(
+        asset:asset_detail_id(
           id,
           asset_no,
           asset_name
@@ -130,7 +136,7 @@ class InventoryGroupsService {
     data: CreateInventoryGroupData
   ): Promise<InventoryGroup> {
     const { data: result, error } = await supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
+      .from("i_inventory_group")
       .insert({
         ...data,
         created_at: new Date().toISOString(),
@@ -138,7 +144,7 @@ class InventoryGroupsService {
       .select(
         `
         *,
-        asset:e_asset(
+        asset:asset_detail_id(
           id,
           asset_no,
           asset_name
@@ -162,7 +168,7 @@ class InventoryGroupsService {
     data: UpdateInventoryGroupData
   ): Promise<InventoryGroup> {
     const { data: result, error } = await supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
+      .from("i_inventory_group")
       .update({
         ...data,
         updated_at: new Date().toISOString(),
@@ -171,7 +177,7 @@ class InventoryGroupsService {
       .select(
         `
         *,
-        asset:e_asset(
+        asset:asset_detail_id(
           id,
           asset_no,
           asset_name
@@ -192,7 +198,7 @@ class InventoryGroupsService {
    */
   async deleteInventoryGroup(id: number): Promise<void> {
     const { error } = await supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
+      .from("i_inventory_group")
       .delete()
       .eq("id", id);
 
@@ -208,18 +214,18 @@ class InventoryGroupsService {
     assetId: number
   ): Promise<InventoryGroup[]> {
     const { data, error } = await supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
+      .from("i_inventory_group")
       .select(
         `
         *,
-        asset:e_asset(
+        asset:asset_detail_id(
           id,
           asset_no,
           asset_name
         )
       `
       )
-      .eq("asset_id", assetId)
+      .eq("asset_detail_id", assetId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -240,10 +246,10 @@ class InventoryGroupsService {
     excludeId?: number
   ): Promise<boolean> {
     let query = supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
+      .from("i_inventory_group")
       .select("id")
       .eq("group_name", groupName)
-      .eq("asset_id", assetId);
+      .eq("asset_detail_id", assetId);
 
     if (excludeId) {
       query = query.neq("id", excludeId);
@@ -269,8 +275,8 @@ class InventoryGroupsService {
     totalComponents: number;
   }> {
     const { data, error } = await supabase
-      .from("e_inventory_groups") // Replace with actual table name when created
-      .select("id, is_active, total_inventory, component_inventory");
+      .from("i_inventory_group")
+      .select("id, is_status, total_inventory, component_inventory");
 
     if (error) {
       throw new Error(`Error fetching inventory group stats: ${error.message}`);
@@ -278,8 +284,8 @@ class InventoryGroupsService {
 
     const stats = {
       total: data?.length || 0,
-      active: data?.filter((item) => item.is_active).length || 0,
-      inactive: data?.filter((item) => !item.is_active).length || 0,
+      active: data?.filter((item) => item.is_status).length || 0,
+      inactive: data?.filter((item) => !item.is_status).length || 0,
       totalInventory:
         data?.reduce((sum, item) => sum + (item.total_inventory || 0), 0) || 0,
       totalComponents:
