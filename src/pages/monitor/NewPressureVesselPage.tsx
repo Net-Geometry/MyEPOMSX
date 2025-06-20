@@ -324,7 +324,7 @@ const NewPressureVesselPage: React.FC = () => {
 
       // Prepare main pressure vessel data for i_ims_general table insertion
       const imsGeneralData = {
-        // Core required fields
+        // Core required fields - only fields that exist in i_ims_general table
         asset_detail_id: selectedAsset.asset_detail_id, // Use asset_detail_id from the selected asset
         year_in_service: formData.yearInService, // yyyy-mm-dd format
         tmin: formData.tmin || null, // Store as string as expected by database
@@ -340,62 +340,6 @@ const NewPressureVesselPage: React.FC = () => {
         ims_asset_type_id: 1, // Automatically set to 1 for Pressure Vessel
         inner_diameter: parseFloat(formData.innerDiameter) || null,
         clad_thickness: parseFloat(formData.cladThickness) || null,
-
-        // Additional fields from other tabs (if they exist in i_ims_general table)
-        outer_diameter: parseFloat(formData.outerDiameter) || null,
-        length: parseFloat(formData.length) || null,
-        weld_join_efficiency: parseFloat(formData.weldJoinEfficiency) || null,
-        design_temperature: parseFloat(formData.designTemperature) || null,
-        operating_temperature:
-          parseFloat(formData.operatingTemperature) || null,
-        design_pressure: parseFloat(formData.designPressure) || null,
-        operating_pressure: parseFloat(formData.operatingPressure) || null,
-        allowable_stress: parseFloat(formData.allowableStress) || null,
-        corrosion_allowance: parseFloat(formData.corrosionAllowance) || null,
-        ext_env: formData.extEnv,
-        geometry: formData.geometry,
-        pipe_support: formData.pipeSupport === "yes",
-        soil_water_interface: formData.soilWaterInterface === "yes",
-        deadleg: formData.deadleg === "yes",
-        mixpoint: formData.mixpoint === "yes",
-
-        // Protection Tab Data
-        coating_quality: formData.coatingQuality,
-        insulation_type: formData.insulationType,
-        insulation_complexity: formData.insulationComplexity,
-        insulation_condition: formData.insulationCondition,
-        design_fabrication: formData.designFabrication,
-        interface: formData.interface,
-        lining_type: formData.liningType,
-        lining_condition: formData.liningCondition,
-        lining_monitoring: formData.liningMonitoring,
-        online_monitor: formData.onlineMonitor,
-
-        // Service Tab Data
-        fluid_representative: formData.fluidRepresentative,
-        toxicity: formData.toxicity,
-        fluid_phase: formData.fluidPhase,
-        toxic_mass_fraction: parseFloat(formData.toxicMassFraction) || null,
-
-        // Risk Tab Data
-        risk_ranking: formData.riskRanking,
-        risk_level: formData.riskLevel,
-        dthin: parseFloat(formData.dthin) || null,
-        dscc: parseFloat(formData.dscc) || null,
-        dbrit: parseFloat(formData.dbrit) || null,
-        pof: parseFloat(formData.pof) || null,
-        dextd: parseFloat(formData.dextd) || null,
-        dhtha: parseFloat(formData.dhtha) || null,
-        dmfat: parseFloat(formData.dmfat) || null,
-        f1: parseFloat(formData.f1) || null,
-        cof_dollar: parseFloat(formData.cofDollar) || null,
-        cof_m2: parseFloat(formData.cofM2) || null,
-
-        // Inspection Tab Data
-        inspection_plan: formData.inspectionPlan,
-
-        // Additional Data
-        notes: formData.notes,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -411,6 +355,86 @@ const NewPressureVesselPage: React.FC = () => {
 
       if (insertError) throw insertError;
       const recordId = savedRecord.id;
+
+      // Insert Design Tab data into i_ims_design table
+      const imsDesignData = {
+        asset_detail_id: selectedAsset.asset_detail_id,
+        ims_asset_type_id: 1, // Pressure Vessel
+        outer_diameter: parseFloat(formData.outerDiameter) || null,
+        internal_diameter: parseFloat(formData.innerDiameter) || null,
+        length: parseFloat(formData.length) || null,
+        welding_efficiency: parseFloat(formData.weldJoinEfficiency) || null,
+        design_temperature: parseFloat(formData.designTemperature) || null,
+        operating_temperature:
+          parseFloat(formData.operatingTemperature) || null,
+        design_pressure: parseFloat(formData.designPressure) || null,
+        operating_pressure_mpa: parseFloat(formData.operatingPressure) || null,
+        allowable_stress_mpa: parseFloat(formData.allowableStress) || null,
+        corrosion_allowance: parseFloat(formData.corrosionAllowance) || null,
+        ext_env_id: parseInt(formData.extEnv) || null,
+        geometry_id: parseInt(formData.geometry) || null,
+        pipe_support: formData.pipeSupport === "yes",
+        soil_water_interface: formData.soilWaterInterface === "yes",
+        dead_legs: formData.deadleg === "yes",
+        mix_point: formData.mixpoint === "yes",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Prepared i_ims_design data:", imsDesignData);
+
+      const { error: designInsertError } = await supabase
+        .from("i_ims_design")
+        .insert(imsDesignData);
+
+      if (designInsertError) throw designInsertError;
+
+      // Insert Protection Tab data into i_ims_protection table
+      const imsProtectionData = {
+        asset_detail_id: selectedAsset.asset_detail_id,
+        ims_asset_type_id: 1, // Pressure Vessel
+        coating_quality_id: parseInt(formData.coatingQuality) || null,
+        insulation_type_id: parseInt(formData.insulationType) || null,
+        insulation_complexity_id:
+          parseInt(formData.insulationComplexity) || null,
+        insulation_condition: formData.insulationCondition || null,
+        design_fabrication_id: parseInt(formData.designFabrication) || null,
+        interface_id: parseInt(formData.interface) || null,
+        lining_type: formData.liningType || null,
+        lining_condition: formData.liningCondition || null,
+        lining_monitoring: formData.liningMonitoring || null,
+        online_monitor: parseInt(formData.onlineMonitor) || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Prepared i_ims_protection data:", imsProtectionData);
+
+      const { error: protectionInsertError } = await supabase
+        .from("i_ims_protection")
+        .insert(imsProtectionData);
+
+      if (protectionInsertError) throw protectionInsertError;
+
+      // Insert Service Tab data into i_ims_service table
+      const imsServiceData = {
+        asset_detail_id: selectedAsset.asset_detail_id,
+        ims_asset_type_id: 1, // Pressure Vessel
+        fluid_representive_id: parseInt(formData.fluidRepresentative) || null,
+        toxicity_id: parseInt(formData.toxicity) || null,
+        fluid_phase_id: parseInt(formData.fluidPhase) || null,
+        toxic_mass_fraction: parseFloat(formData.toxicMassFraction) || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Prepared i_ims_service data:", imsServiceData);
+
+      const { error: serviceInsertError } = await supabase
+        .from("i_ims_service")
+        .insert(imsServiceData);
+
+      if (serviceInsertError) throw serviceInsertError;
 
       // Handle Inspection Reports File Upload with proper bucket structure
       let inspectionReportPaths: string[] = [];
@@ -436,7 +460,7 @@ const NewPressureVesselPage: React.FC = () => {
             // Upload to Supabase Storage
             const { data: uploadData, error: uploadError } =
               await supabase.storage
-                .from("integrity-files")
+                .from("integrity")
                 .upload(bucketPath, file, {
                   cacheControl: "3600",
                   upsert: false,
@@ -488,7 +512,7 @@ const NewPressureVesselPage: React.FC = () => {
             // Upload to Supabase Storage
             const { data: uploadData, error: uploadError } =
               await supabase.storage
-                .from("integrity-files")
+                .from("integrity")
                 .upload(bucketPath, file, {
                   cacheControl: "3600",
                   upsert: false,
@@ -528,6 +552,9 @@ const NewPressureVesselPage: React.FC = () => {
       console.log("Attachments Uploaded:", attachmentPaths.length);
       console.log("Data Structure:");
       console.log("- Main record saved to: i_ims_general table");
+      console.log("- Design data saved to: i_ims_design table");
+      console.log("- Protection data saved to: i_ims_protection table");
+      console.log("- Service data saved to: i_ims_service table");
       console.log(
         "- Inspection reports saved to: i_inspection_attachment table"
       );
