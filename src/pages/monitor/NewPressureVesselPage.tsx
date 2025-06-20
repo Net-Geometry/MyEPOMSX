@@ -46,7 +46,7 @@
  * - Equipment Tag, Area, System are reference-only fields from related tables
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,7 +87,11 @@ import {
   useAssetTagOptions,
   useAssetWithComponentTypeOptions,
 } from "@/hooks/queries/useAssetDropdownOptions";
-import { useMaterialConstructionOptions } from "@/hooks/queries/useCorrosionDropdownOptions";
+import {
+  useMaterialConstructionOptions,
+  useAsmeViiAllowableStressLookup,
+  useTminCalculation,
+} from "@/hooks/queries/useCorrosionDropdownOptions";
 import { supabase } from "@/lib/supabaseClient";
 
 const NewPressureVesselPage: React.FC = () => {
@@ -117,7 +121,7 @@ const NewPressureVesselPage: React.FC = () => {
     materialConstruction: "", // material_construction_id - from selecting Material Construction, store the id
     tmin: "", // tmin - from input Tmin (mm) under general tab
     description: "", // description - from input Description under general tab
-    nominalThickness: "", // nominal_bore_diameter - from input Nominal Thickness (mm) under general tab
+    nominalThickness: "", // normal_wall_thickness - from input Nominal Thickness (mm) under general tab
     insulation: "", // insulation - from radio button Insulation value (yes/no)
     h2s: "", // line_h2s - from radio button H2S value (yes/no)
     internalLining: "", // internal_lining - from radio button Internal Lining value (yes/no)
@@ -131,11 +135,11 @@ const NewPressureVesselPage: React.FC = () => {
     outerDiameter: "", // mm
     length: "", // mm
     weldJoinEfficiency: "", // unitless
-    designTemperature: "", // Degree Celsius
+    designTemperature: "", // Degree Fahrenheit (user input)
     operatingTemperature: "", // Degree Celsius
     designPressure: "", // MPa
     operatingPressure: "", // MPa
-    allowableStress: "", // MPa
+    allowableStress: "", // MPa (auto-calculated)
     corrosionAllowance: "", // mm
     extEnv: "", // dropdown/text
     geometry: "", // dropdown/text
@@ -190,76 +194,45 @@ const NewPressureVesselPage: React.FC = () => {
     notes: "",
   });
 
-  // Allowable stress calculation function based on material construction
-  const calculateAllowableStress = (materialConstruction: string): string => {
-    const materialStressMapping: { [key: string]: number } = {
-      "carbon-steel-a516-gr70": 138.0, // MPa
-      "stainless-steel-304l": 137.9, // MPa
-      "stainless-steel-316l": 137.9, // MPa
-      "duplex-2205": 207.0, // MPa
-      "super-duplex-2507": 276.0, // MPa
-      "inconel-625": 241.0, // MPa
-      "hastelloy-c276": 172.0, // MPa
-    };
+  // Auto-calculating hooks for allowable stress and Tmin (now after formData is defined)
+  const { data: allowableStress, isLoading: calculatingStress } =
+    useAsmeViiAllowableStressLookup(
+      parseInt(formData.materialConstruction) || undefined,
+      parseInt(formData.designTemperature) || undefined
+    );
 
-    if (materialConstruction && materialStressMapping[materialConstruction]) {
-      return materialStressMapping[materialConstruction].toFixed(1);
-    }
-    return "";
-  };
+  const { data: tminResult, isLoading: calculatingTmin } = useTminCalculation(
+    parseFloat(formData.designPressure) || undefined,
+    allowableStress?.allowable_stress_mpa
+      ? parseFloat(allowableStress.allowable_stress_mpa)
+      : undefined,
+    parseFloat(formData.weldJoinEfficiency) || undefined,
+    parseFloat(formData.innerDiameter) || undefined
+  );
 
-  // Tmin calculation function
-  const calculateTmin = (data: typeof formData) => {
-    const designPressure = parseFloat(data.designPressure) || 0;
-    const innerDiameter = parseFloat(data.innerDiameter) || 0;
-    const allowableStress = parseFloat(data.allowableStress) || 0;
-    const weldJoinEfficiency = parseFloat(data.weldJoinEfficiency) || 0;
-    const componentType = data.componentType;
-
-    // Check if all required values are available for calculation
+  // Auto-update form data when calculations complete
+  useEffect(() => {
     if (
-      designPressure === 0 ||
-      innerDiameter === 0 ||
-      allowableStress === 0 ||
-      weldJoinEfficiency === 0
+      allowableStress?.is_valid_lookup &&
+      allowableStress.allowable_stress_mpa
     ) {
-      return "";
+      setFormData((prev) => ({
+        ...prev,
+        allowableStress: allowableStress.allowable_stress_mpa,
+      }));
     }
+  }, [allowableStress]);
 
-    try {
-      // First part of the formula: (Design Pressure * Inner Diameter) / ((2 * Allowable Stress * Weld Join Efficiency) - (0.6 * Design Pressure))
-      const denominator =
-        2 * allowableStress * weldJoinEfficiency - 0.6 * designPressure;
-
-      if (denominator <= 0) {
-        return ""; // Avoid division by zero or negative denominator
-      }
-
-      const calculatedValue = (designPressure * innerDiameter) / denominator;
-
-      // Second part: Component type based value
-      const componentTypeValue = componentType === "HEXTUBE" ? 0.889 : 3.175;
-
-      // MAX function - return the larger of the two values
-      const tminValue = Math.max(calculatedValue, componentTypeValue);
-
-      return tminValue.toFixed(3); // Return with 3 decimal places
-    } catch (error) {
-      console.error("Error calculating Tmin:", error);
-      return "";
+  useEffect(() => {
+    if (tminResult?.calculation_valid && tminResult.tmin_mm) {
+      setFormData((prev) => ({
+        ...prev,
+        tmin: tminResult.tmin_mm.toFixed(3),
+      }));
     }
-  };
+  }, [tminResult]);
 
   const handleInputChange = (field: string, value: string) => {
-    // Fields that affect Tmin calculation
-    const tminCalculationFields = [
-      "designPressure",
-      "innerDiameter",
-      "allowableStress",
-      "weldJoinEfficiency",
-      "componentType",
-    ];
-
     setFormData((prev) => {
       const updatedData = {
         ...prev,
@@ -277,26 +250,6 @@ const NewPressureVesselPage: React.FC = () => {
           updatedData.area = selectedAsset.area || "";
           updatedData.system = selectedAsset.system || "";
           updatedData.equipmentTag = selectedAsset.equipment_tag || "";
-        }
-      }
-
-      // Calculate allowable stress when material construction changes
-      if (field === "materialConstruction") {
-        const calculatedStress = calculateAllowableStress(value);
-        if (calculatedStress !== "") {
-          updatedData.allowableStress = calculatedStress;
-        }
-      }
-
-      // Calculate Tmin if any relevant field changed
-      if (
-        tminCalculationFields.includes(field) ||
-        field === "asset" ||
-        field === "materialConstruction"
-      ) {
-        const calculatedTmin = calculateTmin(updatedData);
-        if (calculatedTmin !== "") {
-          updatedData.tmin = calculatedTmin;
         }
       }
 
@@ -378,7 +331,7 @@ const NewPressureVesselPage: React.FC = () => {
         material_construction_id:
           parseInt(formData.materialConstruction) || null,
         description: formData.description,
-        nominal_bore_diameter: parseFloat(formData.nominalThickness) || null, // Note: mapping nominalThickness to nominal_bore_diameter
+        normal_wall_thickness: parseFloat(formData.nominalThickness) || null, // Correct mapping for General tab
         insulation: formData.insulation === "yes",
         line_h2s: formData.h2s === "yes",
         internal_lining: formData.internalLining === "yes",
@@ -803,27 +756,37 @@ const NewPressureVesselPage: React.FC = () => {
                             <SelectValue placeholder="Select material" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="carbon-steel-a516-gr70">
-                              Carbon Steel A516 Gr.70
-                            </SelectItem>
-                            <SelectItem value="stainless-steel-304l">
-                              Stainless Steel 304L
-                            </SelectItem>
-                            <SelectItem value="stainless-steel-316l">
-                              Stainless Steel 316L
-                            </SelectItem>
-                            <SelectItem value="duplex-2205">
-                              Duplex 2205
-                            </SelectItem>
-                            <SelectItem value="super-duplex-2507">
-                              Super Duplex 2507
-                            </SelectItem>
-                            <SelectItem value="inconel-625">
-                              Inconel 625
-                            </SelectItem>
-                            <SelectItem value="hastelloy-c276">
-                              Hastelloy C276
-                            </SelectItem>
+                            {materialConstructionOptions.map((option) => (
+                              <SelectItem key={option.id} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                            {/* Fallback dummy data if no API data */}
+                            {materialConstructionOptions.length === 0 && (
+                              <>
+                                <SelectItem value="carbon-steel-a516-gr70">
+                                  Carbon Steel A516 Gr.70
+                                </SelectItem>
+                                <SelectItem value="stainless-steel-304l">
+                                  Stainless Steel 304L
+                                </SelectItem>
+                                <SelectItem value="stainless-steel-316l">
+                                  Stainless Steel 316L
+                                </SelectItem>
+                                <SelectItem value="duplex-2205">
+                                  Duplex 2205
+                                </SelectItem>
+                                <SelectItem value="super-duplex-2507">
+                                  Super Duplex 2507
+                                </SelectItem>
+                                <SelectItem value="inconel-625">
+                                  Inconel 625
+                                </SelectItem>
+                                <SelectItem value="hastelloy-c276">
+                                  Hastelloy C276
+                                </SelectItem>
+                              </>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -869,21 +832,47 @@ const NewPressureVesselPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="tmin">Tmin (mm)</Label>
+                        <Label htmlFor="tmin">
+                          Tmin (mm)
+                          {calculatingTmin && (
+                            <span className="ml-2 text-blue-600 text-xs">
+                              Calculating...
+                            </span>
+                          )}
+                        </Label>
                         <Input
                           id="tmin"
                           type="number"
                           step="0.001"
                           value={formData.tmin}
-                          placeholder="Calculated automatically"
+                          placeholder={
+                            calculatingTmin
+                              ? "Calculating..."
+                              : tminResult?.calculation_valid
+                              ? "Auto-calculated"
+                              : "Enter required inputs for calculation"
+                          }
                           disabled
-                          className="bg-gray-50"
+                          className={`bg-gray-50 ${
+                            calculatingTmin ? "animate-pulse" : ""
+                          }`}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Auto-calculated using: MAX((Design Pressure × Inner
-                          Diameter) ÷ ((2 × Allowable Stress × Weld Join
-                          Efficiency) - (0.6 × Design Pressure)), Component Type
-                          Value)
+                          {calculatingTmin ? (
+                            <span className="text-blue-600">
+                              Auto-calculating using ASME VIII Div 1 formula...
+                            </span>
+                          ) : tminResult?.calculation_valid ? (
+                            <span className="text-green-600">
+                              ✅ Auto-calculated: t = (P × R) / (S × E - 0.6 ×
+                              P)
+                            </span>
+                          ) : (
+                            <span className="text-amber-600">
+                              Requires: Design Pressure, Allowable Stress, Weld
+                              Join Efficiency, Inner Diameter
+                            </span>
+                          )}
                         </p>
                       </div>
 
@@ -1138,7 +1127,7 @@ const NewPressureVesselPage: React.FC = () => {
 
                       <div className="space-y-2">
                         <Label htmlFor="designTemperature">
-                          Design Temperature (°C)
+                          Design Temperature (°F)
                         </Label>
                         <Input
                           id="designTemperature"
@@ -1210,19 +1199,46 @@ const NewPressureVesselPage: React.FC = () => {
                       <div className="space-y-2">
                         <Label htmlFor="allowableStress">
                           Allowable Stress (MPa)
+                          {calculatingStress && (
+                            <span className="ml-2 text-blue-600 text-xs">
+                              Calculating...
+                            </span>
+                          )}
                         </Label>
                         <Input
                           id="allowableStress"
                           type="number"
                           step="0.1"
                           value={formData.allowableStress}
-                          placeholder="Calculated from material construction"
+                          placeholder={
+                            calculatingStress
+                              ? "Calculating..."
+                              : allowableStress?.is_valid_lookup
+                              ? "Calculated from material construction"
+                              : "Select material and temperature first"
+                          }
                           disabled
-                          className="bg-gray-50"
+                          className={`bg-gray-50 ${
+                            calculatingStress ? "animate-pulse" : ""
+                          }`}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Auto-calculated based on selected material
-                          construction
+                          {calculatingStress ? (
+                            <span className="text-blue-600">
+                              Auto-calculating based on material construction
+                              and design temperature...
+                            </span>
+                          ) : allowableStress?.is_valid_lookup ? (
+                            <span className="text-green-600">
+                              ✅ Auto-calculated using ASME VIII INDEX/MATCH
+                              formula
+                            </span>
+                          ) : (
+                            <span className="text-amber-600">
+                              Select Material Construction and Design
+                              Temperature to auto-calculate
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>

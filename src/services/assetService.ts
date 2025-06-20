@@ -121,7 +121,7 @@ export const assetService = {
         asset_status:e_asset_status(*),
         asset_group:e_asset_group(*),
         asset_installation:e_asset_installation(*),
-        asset_detail:e_asset_detail(
+        asset_detail:e_asset_detail!asset_id(
           *,
           category:e_asset_category(*),
           type:e_asset_type(
@@ -136,23 +136,6 @@ export const assetService = {
             sensor_type:e_sensor_type(*),
             manufacturer:e_manufacturer(*),
             client:e_client(*)
-          ),
-          child_assets:e_asset_detail!parent_asset_id(
-            *,
-            asset:e_asset(
-              *,
-              facility:e_facility(*),
-              asset_sce:e_asset_sce(*),
-              system:e_system(*),
-              package:e_package(*),
-              asset_tag:e_asset_tag(*),
-              asset_status:e_asset_status(*),
-              asset_group:e_asset_group(*),
-              asset_installation:e_asset_installation(*)
-            ),
-            type:e_asset_type(
-              *
-            )
           )
         )
       `
@@ -274,7 +257,7 @@ export const assetService = {
               asset_name,
               commission_date,
               asset_status:e_asset_status(name),
-              asset_detail:e_asset_detail(
+              asset_detail:e_asset_detail!asset_detail_id(
                 specification,
                 serial_number,
                 model,
